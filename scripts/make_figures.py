@@ -4,17 +4,19 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import Dict
 
 import numpy as np
+import torch
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
 from pinncps.data import load_dataset
+from pinncps.models import PINN
+from pinncps.models.detector import _smooth
+from pinncps.models.pinn import PINNLoss, PINNLossConfigT
 from pinncps.eval.plots import (
-    plot_detection_delay,
-    plot_residual_heatmap,
+    plot_component_timeseries,
     plot_roc_curves,
     plot_trajectory_attack,
 )
@@ -36,7 +38,7 @@ def _attack_examples(test_data, scores_by_method, out_dir: Path) -> None:
         plot_trajectory_attack(
             states[i], obs[i], labels[i],
             out_dir / f"attack_{m['kind']}_{m['severity']}",
-            title=f"{m['kind']} ({m['severity']})",
+            title=f"{m['kind'].replace('_', ' ')} ({m['severity']})",
         )
 
 
@@ -52,28 +54,99 @@ def _roc_figures(test_data, scores_by_method, out_dir: Path) -> None:
         plot_roc_curves(
             {name: (s[mask], labels[mask]) for name, s in scores_by_method.items()},
             out_dir / f"roc_{atk}",
-            title=atk,
+            title=atk.replace("_", " "),
         )
 
 
-def _delay_figure(test_data, scores_by_method, out_dir: Path) -> None:
-    from pinncps.eval.metrics import threshold_from_validation
-    delays: Dict[str, np.ndarray] = {}
+def _load_prm_components(cfg, run_dir: Path, dataset):
+    ckpt = torch.load(run_dir / "pinn.pt", map_location="cpu", weights_only=False)
+    obs_dim = ckpt.get("obs_dim", cfg.model.obs_dim)
+    physics = PINNLoss(
+        dt=ckpt["robot"]["dt"],
+        energy_idle=ckpt["robot"]["energy_idle"],
+        energy_lin=ckpt["robot"]["energy_lin"],
+        energy_ang=ckpt["robot"]["energy_ang"],
+        cfg=PINNLossConfigT(**ckpt["physics_cfg"]),
+        obs_dim=obs_dim,
+    )
+    model = PINN(
+        hidden=cfg.model.hidden,
+        n_layers=cfg.model.n_layers,
+        dropout=cfg.model.dropout,
+        obs_dim=obs_dim,
+    )
+    model.load_state_dict(ckpt["model"])
+    model.eval()
+
+    obs = dataset["obs"]
+    commands = dataset["commands"]
+    n, tp1, d = obs.shape
+    s = torch.from_numpy(obs[:, :-1].reshape(-1, d)).float()
+    u = torch.from_numpy(commands.reshape(-1, commands.shape[-1])).float()
+    sn = torch.from_numpy(obs[:, 1:].reshape(-1, d)).float()
+    preds = []
+    with torch.no_grad():
+        for i in range(0, s.shape[0], 4096):
+            preds.append(model(s[i:i + 4096], u[i:i + 4096]))
+        sp = torch.cat(preds, dim=0)
+        pred = torch.linalg.vector_norm(sp - sn, dim=-1).cpu().numpy()
+        kin = torch.linalg.vector_norm(physics._kin_residual(s, sn), dim=-1).cpu().numpy()
+    pred = pred.reshape(n, tp1 - 1)
+    kin = kin.reshape(n, tp1 - 1)
+    pred_full = np.empty((n, tp1), dtype=np.float64)
+    kin_full = np.empty((n, tp1), dtype=np.float64)
+    pred_full[:, 0] = pred[:, 0]
+    pred_full[:, 1:] = pred
+    kin_full[:, 0] = kin[:, 0]
+    kin_full[:, 1:] = kin
+    return pred_full, kin_full
+
+
+def _prm_scores(cfg, run_dir: Path, data_dir: Path, test_data):
+    val = load_dataset(data_dir / "val.npz")
+    val_pred, val_kin = _load_prm_components(cfg, run_dir, val)
+    test_pred, test_kin = _load_prm_components(cfg, run_dir, test_data)
+    pred_scale = np.std(val_pred) + 1e-9
+    kin_scale = np.std(val_kin) + 1e-9
+    return {
+        "Prediction channel": _smooth(test_pred / pred_scale, 5),
+        "PRM": _smooth(test_kin / kin_scale, 5),
+        "Sum diagnostic": _smooth(test_pred / pred_scale + test_kin / kin_scale, 5),
+    }
+
+
+def _curated_scores(cfg, run_dir: Path, data_dir: Path, test_data, cached_scores):
+    scores = _prm_scores(cfg, run_dir, data_dir, test_data)
+    labels = {
+        "oc_svm": "OC-SVM",
+        "iso_forest": "Isolation Forest",
+        "kalman": "EKF residual",
+        "mlp": "MLP",
+        "lstm_ae": "LSTM-AE",
+    }
+    for key, label in labels.items():
+        if key in cached_scores:
+            scores[label] = cached_scores[key]
+    return scores
+
+
+def _component_figure(test_data, component_scores, out_dir: Path) -> None:
+    meta = test_data["meta"]
     labels = test_data["labels"]
-    for name, sc in scores_by_method.items():
-        # Use the nominal scores from a separate file if available, else the
-        # 50th percentile of attacked scores as a placeholder threshold.
-        thr = float(np.quantile(sc.reshape(-1), 0.6))
-        per = []
-        for i in range(sc.shape[0]):
-            atk_idx = np.where(labels[i] > 0)[0]
-            if atk_idx.size == 0:
-                continue
-            t_a = int(atk_idx[0])
-            det = np.where(sc[i, t_a:] >= thr)[0]
-            per.append(int(det[0]) if det.size else sc.shape[1] - t_a)
-        delays[name] = np.array(per, dtype=np.float64) if per else np.array([0.0])
-    plot_detection_delay(delays, out_dir / "detection_delay", title="Detection delay")
+    candidates = [
+        i for i, m in enumerate(meta)
+        if m["kind"] == "gps_spoofing" and m["severity"] == "overt"
+    ]
+    if not candidates:
+        return
+    idx = max(candidates, key=lambda i: float(np.max(component_scores["PRM"][i])))
+    plot_component_timeseries(
+        component_scores["PRM"][idx],
+        component_scores["Prediction channel"][idx],
+        labels[idx],
+        out_dir / "prm_component_timeseries",
+        title=f"{meta[idx]['kind'].replace('_', ' ')} ({meta[idx]['severity']})",
+    )
 
 
 def main():
@@ -98,18 +171,10 @@ def main():
         keys = [k for k in f.files if k not in ("labels", "meta")]
         scores_by_method = {k: f[k] for k in keys}
 
+    curated_scores = _curated_scores(cfg, run_dir, data_dir, test_data, scores_by_method)
     _attack_examples(test_data, scores_by_method, fig_dir)
-    _roc_figures(test_data, scores_by_method, fig_dir)
-    _delay_figure(test_data, scores_by_method, fig_dir)
-
-    # Residual heatmap for the PINN over the first 16 trajectories.
-    if "pinn" in scores_by_method:
-        plot_residual_heatmap(
-            scores_by_method["pinn"][:16],
-            test_data["labels"][:16],
-            fig_dir / "pinn_residual_heatmap",
-            title="PINN anomaly score",
-        )
+    _roc_figures(test_data, curated_scores, fig_dir)
+    _component_figure(test_data, curated_scores, fig_dir)
     print(f"wrote figures to {fig_dir}")
 
 

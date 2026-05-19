@@ -118,3 +118,30 @@ def plot_residual_heatmap(
         ax.set_title(title)
     fig.colorbar(im, ax=ax, fraction=0.04, pad=0.02)
     _save(fig, path)
+
+
+def plot_component_timeseries(
+    kin_score: np.ndarray,
+    pred_score: np.ndarray,
+    labels: np.ndarray,
+    path: Path,
+    title: str = "",
+):
+    """Plot the two PRM diagnostic channels for one attacked trajectory."""
+    _style()
+    t = np.arange(len(labels))
+    fig, axes = plt.subplots(2, 1, figsize=(3.5, 2.6), sharex=True)
+    axes[0].plot(t, kin_score, color="tab:blue", linewidth=1.0)
+    axes[0].set_ylabel("kinematic")
+    axes[1].plot(t, pred_score, color="tab:orange", linewidth=1.0)
+    axes[1].set_ylabel("prediction")
+    axes[1].set_xlabel("time step")
+    atk = np.where(labels > 0)[0]
+    if atk.size:
+        for ax in axes:
+            ax.axvspan(int(atk[0]), int(atk[-1]), color="tab:red", alpha=0.12, linewidth=0)
+    if title:
+        axes[0].set_title(title)
+    for ax in axes:
+        ax.grid(True, linewidth=0.3, alpha=0.35)
+    _save(fig, path)
