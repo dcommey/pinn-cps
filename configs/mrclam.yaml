@@ -1,0 +1,56 @@
+seed: 0
+name: mrclam
+
+sim:
+  dt: 0.1
+  horizon: 200
+  v_max: 0.5
+  omega_max: 2.0
+  energy_idle: 0.0
+  energy_lin: 0.0
+  energy_ang: 0.0
+  battery_init: 0.0
+  trajectory_types: [real_mrclam]
+
+sensor:
+  noise_pos: 0.0
+  noise_vel: 0.0
+  noise_heading: 0.0
+  noise_omega: 0.0
+  noise_battery: 0.0
+  dropout_prob: 0.0
+
+attack:
+  types: [gps_spoofing, sensor_bias, replay, packet]
+  severity_levels: [stealthy, overt]
+  start_frac_low: 0.3
+  start_frac_high: 0.7
+
+data:
+  n_train: 250
+  n_val: 60
+  n_test_per_attack: 60
+  window_len: 24
+  stride: 100
+
+model:
+  hidden: 64
+  n_layers: 2
+  lstm_hidden: 64
+  ae_latent: 16
+  dropout: 0.0
+  obs_dim: 5
+
+pinn_loss:
+  lambda_data: 1.0
+  lambda_kin: 0.05
+  lambda_energy: 0.0
+  lambda_smooth: 0.0
+
+train:
+  epochs: 12
+  batch_size: 128
+  lr: 1.0e-3
+  weight_decay: 1.0e-5
+  patience: 4
+  device: cpu

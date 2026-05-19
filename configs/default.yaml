@@ -1,0 +1,63 @@
+# Default experiment for the main comparison.
+#
+# Sized so the full pipeline (data gen + 7 methods + eval) finishes in well
+# under an hour on a single MacBook CPU.  Bump n_train / horizon when you
+# want tighter error bars for the camera-ready run.
+seed: 0
+name: default
+
+sim:
+  dt: 0.1
+  horizon: 200
+  v_max: 1.0
+  omega_max: 1.5
+  energy_idle: 0.05
+  energy_lin: 0.10
+  energy_ang: 0.05
+  battery_init: 100.0
+  trajectory_types: [figure8, waypoint, lawnmower, square]
+
+sensor:
+  noise_pos: 0.02
+  noise_vel: 0.02
+  noise_heading: 0.01
+  noise_omega: 0.01
+  noise_battery: 0.05
+  dropout_prob: 0.0
+
+attack:
+  types: [gps_spoofing, sensor_bias, replay, packet, command_injection]
+  severity_levels: [stealthy, overt]
+  start_frac_low: 0.3
+  start_frac_high: 0.7
+
+data:
+  n_train: 400
+  n_val: 80
+  n_test_per_attack: 60
+  window_len: 32
+  stride: 4
+
+model:
+  hidden: 64
+  n_layers: 2
+  lstm_hidden: 64
+  ae_latent: 16
+  dropout: 0.0
+
+pinn_loss:
+  # Physics weights act as a soft regulariser during training; the dominant
+  # physics signal is in the detection scoring (observation-based kinematic
+  # and energy residuals).  See configs/ablation_no_*.yaml for the sensitivity.
+  lambda_data: 1.0
+  lambda_kin: 0.05
+  lambda_energy: 0.02
+  lambda_smooth: 0.0
+
+train:
+  epochs: 30
+  batch_size: 128
+  lr: 1.0e-3
+  weight_decay: 1.0e-5
+  patience: 6
+  device: cpu

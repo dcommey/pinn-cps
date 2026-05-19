@@ -1,0 +1,56 @@
+# Tiny config for fast end-to-end smoke testing in CI / dev.
+seed: 0
+name: smoke
+
+sim:
+  dt: 0.1
+  horizon: 80
+  v_max: 1.0
+  omega_max: 1.5
+  energy_idle: 0.05
+  energy_lin: 0.10
+  energy_ang: 0.05
+  battery_init: 100.0
+  trajectory_types: [figure8, waypoint]
+
+sensor:
+  noise_pos: 0.02
+  noise_vel: 0.02
+  noise_heading: 0.01
+  noise_omega: 0.01
+  noise_battery: 0.05
+  dropout_prob: 0.0
+
+attack:
+  types: [gps_spoofing, sensor_bias, replay, packet, command_injection]
+  severity_levels: [stealthy, overt]
+  start_frac_low: 0.3
+  start_frac_high: 0.7
+
+data:
+  n_train: 40
+  n_val: 12
+  n_test_per_attack: 8
+  window_len: 16
+  stride: 4
+
+model:
+  hidden: 32
+  n_layers: 2
+  lstm_hidden: 32
+  ae_latent: 8
+  dropout: 0.0
+
+pinn_loss:
+  lambda_data: 1.0
+  lambda_kin: 1.0
+  lambda_energy: 0.5
+  lambda_smooth: 0.05
+
+train:
+  epochs: 6
+  batch_size: 64
+  lr: 1.0e-3
+  weight_decay: 1.0e-5
+  patience: 3
+  device: cpu

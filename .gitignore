@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+pytest-cache-files-*/
+
+# Local machine noise
+.DS_Store
+.ipynb_checkpoints/
+
+# Generated experiment artifacts
+/data/
+/results/
+/configs/generated/
+
+# Manuscript files stay local; the repo is code only.
+paper/

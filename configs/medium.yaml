@@ -1,0 +1,60 @@
+# Mid-sized run for development -- larger than smoke, smaller than default.
+seed: 0
+name: medium
+
+sim:
+  dt: 0.1
+  horizon: 150
+  v_max: 1.0
+  omega_max: 1.5
+  energy_idle: 0.05
+  energy_lin: 0.10
+  energy_ang: 0.05
+  battery_init: 100.0
+  trajectory_types: [figure8, waypoint, lawnmower, square]
+
+sensor:
+  noise_pos: 0.02
+  noise_vel: 0.02
+  noise_heading: 0.01
+  noise_omega: 0.01
+  noise_battery: 0.05
+  dropout_prob: 0.0
+
+attack:
+  types: [gps_spoofing, sensor_bias, replay, packet, command_injection]
+  severity_levels: [stealthy, overt]
+  start_frac_low: 0.3
+  start_frac_high: 0.7
+
+data:
+  n_train: 200
+  n_val: 40
+  n_test_per_attack: 30
+  window_len: 24
+  stride: 4
+
+model:
+  hidden: 64
+  n_layers: 2
+  lstm_hidden: 64
+  ae_latent: 16
+  dropout: 0.0
+
+pinn_loss:
+  # Light physics regularization during training -- the heavy lifting of the
+  # physics signal happens in the detection scoring, where the kinematic and
+  # energy residuals are computed directly from observations.  See
+  # the ablation table for the sensitivity of these weights.
+  lambda_data: 1.0
+  lambda_kin: 0.05
+  lambda_energy: 0.02
+  lambda_smooth: 0.0
+
+train:
+  epochs: 20
+  batch_size: 128
+  lr: 1.0e-3
+  weight_decay: 1.0e-5
+  patience: 5
+  device: cpu
