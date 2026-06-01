@@ -23,6 +23,12 @@ from pinncps.eval.plots import (
 from pinncps.utils import load_config
 
 
+def _display_attack(kind: str) -> str:
+    if kind == "gps_spoofing":
+        return "GPS-like pose spoofing"
+    return kind.replace("_", " ")
+
+
 def _attack_examples(test_data, scores_by_method, out_dir: Path) -> None:
     """One trajectory figure per attack type."""
     states = test_data["states"]
@@ -38,7 +44,7 @@ def _attack_examples(test_data, scores_by_method, out_dir: Path) -> None:
         plot_trajectory_attack(
             states[i], obs[i], labels[i],
             out_dir / f"attack_{m['kind']}_{m['severity']}",
-            title=f"{m['kind'].replace('_', ' ')} ({m['severity']})",
+            title=f"{_display_attack(m['kind'])} ({m['severity']})",
         )
 
 
@@ -54,7 +60,7 @@ def _roc_figures(test_data, scores_by_method, out_dir: Path) -> None:
         plot_roc_curves(
             {name: (s[mask], labels[mask]) for name, s in scores_by_method.items()},
             out_dir / f"roc_{atk}",
-            title=atk.replace("_", " "),
+            title=_display_attack(atk),
         )
 
 
@@ -145,7 +151,7 @@ def _component_figure(test_data, component_scores, out_dir: Path) -> None:
         component_scores["Prediction channel"][idx],
         labels[idx],
         out_dir / "prm_component_timeseries",
-        title=f"{meta[idx]['kind'].replace('_', ' ')} ({meta[idx]['severity']})",
+        title=f"{_display_attack(meta[idx]['kind'])} ({meta[idx]['severity']})",
     )
 
 

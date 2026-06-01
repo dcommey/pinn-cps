@@ -23,20 +23,23 @@ from .pinn import PINN, PINNLoss
 
 
 def _smooth(scores: np.ndarray, window: int) -> np.ndarray:
-    """Centered uniform smoothing along the time axis.
+    """Causal trailing uniform smoothing along the time axis.
 
     Smoothing helps separate persistent (small-amplitude) attacks from i.i.d.
     sensor-noise excursions.  Window is in time steps; ``window <= 1`` is a
-    no-op.
+    no-op.  The output at time ``t`` uses only scores from times ``<= t``.
     """
     if window <= 1:
         return scores
     k = int(window)
-    # Pad with edge values so the smoothed result has the same shape.
     if scores.ndim == 1:
-        x = np.pad(scores, (k // 2, k - 1 - k // 2), mode="edge")
-        c = np.ones(k) / k
-        return np.convolve(x, c, mode="valid")
+        x = np.asarray(scores)
+        cumsum = np.cumsum(np.insert(x, 0, 0.0))
+        out = np.empty_like(x, dtype=np.float64)
+        for t in range(x.shape[0]):
+            start = max(0, t - k + 1)
+            out[t] = (cumsum[t + 1] - cumsum[start]) / (t - start + 1)
+        return out
     out = np.empty_like(scores)
     for i in range(scores.shape[0]):
         out[i] = _smooth(scores[i], window)
@@ -124,12 +127,10 @@ class NeuralPredictorDetector:
         if self.physics_loss is not None:
             kin = torch.linalg.vector_norm(self.physics_loss._kin_residual(s, sn), dim=-1) / self._kin_scale
             eng = torch.abs(self.physics_loss._energy_residual(s, sn)) / self._eng_scale
-            # Sum of standardised channels: the per-channel contribution is
-            # interpretable, and the sum tracks the total "physics + data"
-            # surprise.  Sum (vs max) trades a worse best-case detection
-            # rate for a much lower nominal variance and clearer per-attack
-            # decomposition in the ablation study.
-            score = pred_err + kin + (eng if sn.shape[-1] >= 6 else 0.0)
+            # The real-data PRM operating score is the analytic kinematic
+            # residual. Prediction and energy channels are diagnostic/ablation
+            # signals rather than the thresholded deployment score.
+            score = kin + (eng if sn.shape[-1] >= 6 else 0.0)
         else:
             score = pred_err
         score = score.cpu().numpy().reshape(N, T)
