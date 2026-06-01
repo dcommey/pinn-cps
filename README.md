@@ -65,6 +65,7 @@ Then run the score ablations:
 
 ```bash
 python scripts/evaluate_score_variants.py
+python scripts/evaluate_ocsvm_feature_ablation.py
 python scripts/evaluate_score_variants.py \
   --pattern 'configs/generated/mrclam_d1_holdout_r[1-5].yaml' \
   --out-prefix mrclam_holdout_score_variants

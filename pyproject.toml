@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pinncps"
 version = "0.1.0"
-description = "Physics-residual digital twin for FDI detection in IoRT"
+description = "Physics-residual monitoring for mobile-robot FDI detection"
 readme = "README.md"
 requires-python = ">=3.9"
 authors = [{name = "Daniel"}]

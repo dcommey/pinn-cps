@@ -2,12 +2,12 @@
 
 This script reuses trained MR.CLAM detectors and computes:
 
-* PRDT prediction channel only
-* PRDT kinematic channel only
-* PRDT sum (the manuscript default)
-* PRDT max(prediction, kinematic)
-* PRDT Mahalanobis combination of the two channels
-* max-fusion of PRDT sum and OC-SVM after nominal standardisation
+* prediction channel only
+* kinematic channel only (the PRM operating score)
+* sum of prediction and kinematic channels
+* max(prediction, kinematic)
+* Mahalanobis combination of the two channels
+* max-fusion of PRM and OC-SVM after nominal standardisation
 
 It writes per-run and aggregated summaries under results/tables.
 """
@@ -57,7 +57,7 @@ def _predict_components(model, physics, obs, commands, device="cpu", chunk=4096)
     return out_pred, out_kin
 
 
-def _load_prdt(cfg, run_dir: Path):
+def _load_prm_predictor(cfg, run_dir: Path):
     ckpt = torch.load(run_dir / "pinn.pt", map_location="cpu", weights_only=False)
     obs_dim = ckpt.get("obs_dim", cfg.model.obs_dim)
     physics = PINNLoss(
@@ -133,7 +133,7 @@ def evaluate_run(config_path: Path):
     nominal = load_dataset(data_dir / "test_nominal.npz")
     test = load_dataset(data_dir / "test_attack.npz")
 
-    model, physics = _load_prdt(cfg, run_dir)
+    model, physics = _load_prm_predictor(cfg, run_dir)
     val_pred_raw, val_kin_raw = _predict_components(model, physics, val["obs"], val["commands"])
     nom_pred_raw, nom_kin_raw = _predict_components(model, physics, nominal["obs"], nominal["commands"])
     test_pred_raw, test_kin_raw = _predict_components(model, physics, test["obs"], test["commands"])
@@ -155,11 +155,11 @@ def evaluate_run(config_path: Path):
     labels = test["labels"]
     meta = test["meta"]
     for variant, scores, nominal_scores in [
-        ("prdt_pred_only", test_pred, nom_pred),
-        ("prdt_kin_only", test_kin, nom_kin),
-        ("prdt_sum", test_sum, nom_sum),
-        ("prdt_max", test_max, nom_max),
-        ("prdt_mahalanobis", test_maha, nom_maha),
+        ("prm_pred_only", test_pred, nom_pred),
+        ("prm_kin_only", test_kin, nom_kin),
+        ("prm_sum", test_sum, nom_sum),
+        ("prm_max", test_max, nom_max),
+        ("prm_mahalanobis", test_maha, nom_maha),
     ]:
         rows.extend(_eval_scores(cfg.name, variant, scores, nominal_scores, labels, meta))
 
@@ -171,7 +171,7 @@ def evaluate_run(config_path: Path):
         test_oc = oc.score_batch(test["obs"], test["commands"])
         nom_fused = np.maximum(_standardize(nom_sum, nom_sum), _standardize(nom_oc, nom_oc))
         test_fused = np.maximum(_standardize(test_sum, nom_sum), _standardize(test_oc, nom_oc))
-        rows.extend(_eval_scores(cfg.name, "fusion_max_prdt_ocsvm", test_fused, nom_fused, labels, meta))
+        rows.extend(_eval_scores(cfg.name, "fusion_max_prm_ocsvm", test_fused, nom_fused, labels, meta))
     return rows
 
 

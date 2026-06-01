@@ -1,2 +1,2 @@
-"""Physics-residual digital twin for FDI detection in IoRT."""
+"""Physics-residual monitoring for mobile-robot FDI detection."""
 __version__ = "0.1.0"

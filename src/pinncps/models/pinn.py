@@ -1,4 +1,4 @@
-"""Physics-informed neural digital twin.
+"""Residual one-step predictor and kinematic loss helpers.
 
 The model is a one-step predictor:
 
@@ -11,14 +11,14 @@ trained on nominal trajectories with the loss
       + lambda_energy * ||g_energy(s_t, s_pred, u_t)||^2
       + lambda_smooth * ||s_pred - s_t||^2
 
-where ``g_kin`` and ``g_energy`` are the kinematic and energy residuals
-derived from the unicycle model.  Using a one-step predictor lets us compute
-residuals analytically from successive states without back-propagating through
-an integrator, which is critical for keeping training fast on CPU.
+where ``g_kin`` and ``g_energy`` are residual terms derived from the unicycle
+model.  Using a one-step predictor lets us compute residuals analytically from
+successive states without back-propagating through an integrator, which is
+critical for keeping training fast on CPU.
 
 For detection, the per-step anomaly score is
 
-    score_t = w_pred * ||s_obs_t - s_pred_t||  + w_phys * ||phys_residuals||
+    score_t = w_pred * ||s_obs_t - s_pred_t|| + w_phys * ||phys_residuals||
 
 where the weights ``(w_pred, w_phys)`` are learned on a held-out nominal set
 to roughly match the magnitudes of the two terms (see
