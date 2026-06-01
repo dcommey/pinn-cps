@@ -6,10 +6,11 @@ public UTIAS MR.CLAM datasets: real Vicon pose traces and logged odometry
 commands are converted into monitoring episodes, then controlled cyber-channel
 perturbations are applied to the observation stream.
 
-The current detector is intentionally simple. It uses a trapezoidal kinematic
-residual as the primary alarm score, with a learned one-step predictor kept as
-an auxiliary diagnostic channel. That turned out to be the honest story in the
-experiments: the residual signal matters more than the neural architecture.
+The current detector is intentionally simple. It uses a causally smoothed
+trapezoidal kinematic residual as the primary alarm score, with a learned
+one-step predictor kept as an auxiliary diagnostic channel. That turned out to
+be the honest story in the experiments: the residual signal matters more than
+the neural architecture.
 
 ## What is included
 
@@ -68,7 +69,7 @@ python scripts/evaluate_score_variants.py
 python scripts/evaluate_ocsvm_feature_ablation.py
 python scripts/evaluate_score_variants.py \
   --pattern 'configs/generated/mrclam_d1_holdout_r[1-5].yaml' \
-  --out-prefix mrclam_holdout_score_variants
+  --out-prefix mrclam_robot_holdout_score_variants
 ```
 
 To regenerate the figures used for a single MR.CLAM run:

@@ -183,7 +183,7 @@ def main():
                 retrain=args.retrain,
                 figures=args.figures and n == args.datasets[0],
             )
-        _aggregate("mrclam_d*/main_results.csv", "mrclam_dataset", "dataset_run")
+        _aggregate("mrclam_d[1-9]/main_results.csv", "mrclam_dataset", "dataset_run")
 
     if not args.skip_heldout_runs:
         dataset_dir = _download_dataset(args.heldout_dataset)
