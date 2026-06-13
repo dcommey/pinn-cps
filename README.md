@@ -1,31 +1,22 @@
-# Physics-Residual Monitoring for MR.CLAM Robot Telemetry
+# PINN-CPS
 
-This repository contains the code for a small research pipeline on false-data
-injection detection in mobile-robot telemetry. The main experiment uses the
-public UTIAS MR.CLAM datasets: real Vicon pose traces and logged odometry
-commands are converted into monitoring episodes, then controlled cyber-channel
-perturbations are applied to the observation stream.
+Code for physics-residual monitoring of false-data injection attacks in
+mobile-robot telemetry.
 
-The current detector is intentionally simple. It uses a causally smoothed
-trapezoidal kinematic residual as the primary alarm score, with a learned
-one-step predictor kept as an auxiliary diagnostic channel. That turned out to
-be the honest story in the experiments: the residual signal matters more than
-the neural architecture.
+The main experiments use UTIAS MR.CLAM robot traces. The pipeline converts real
+Vicon poses and logged odometry commands into monitoring episodes, injects
+cyber-channel perturbations, and evaluates residual-based detectors against
+classical and neural baselines.
 
-## What is included
+## Contents
 
-- MR.CLAM preprocessing for all nine public sub-datasets.
-- Attack construction for GPS-like spoofing, sensor bias, replay, and packet
-  hold/delay perturbations.
-- Baselines: MLP, LSTM, GRU, LSTM autoencoder, Isolation Forest, one-class SVM,
-  and an EKF residual detector.
-- Evaluation code for F1, ROC-AUC, PR-AUC, delay, miss rate, score ablations,
-  and robot-held-out transfer.
-- Unit tests for the core attack, metric, robot, and residual logic.
-
-Generated datasets, trained checkpoints, result tables, figures, and manuscript
-build artifacts are intentionally not tracked. They are reproducible from the
-scripts.
+- MR.CLAM preprocessing and experiment configs.
+- Attacks: pose spoofing, sensor bias, replay, and packet hold/delay.
+- Detectors: physics-residual monitor, neural predictors, OC-SVM, Isolation
+  Forest, and EKF residual baseline.
+- Evaluation scripts for F1, ROC-AUC, PR-AUC, detection delay, ablations, and
+  robot-held-out transfer.
+- Unit tests for attacks, metrics, robot simulation, and residual logic.
 
 ## Setup
 
@@ -36,54 +27,43 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
-Run the tests:
+## Data Layout
 
-```bash
-pytest tests
-```
-
-## Data
-
-Download the UTIAS MR.CLAM archives from the original project site and extract
-them under:
+Place the extracted MR.CLAM folders under:
 
 ```text
 data/raw/mrclam/
 ```
 
-The suite accepts the usual extracted directory names, including
-`MRCLAM_Dataset1` and the Dataset 4 `MRSLAM_Dataset4` spelling.
+Expected names include `MRCLAM_Dataset1` through `MRCLAM_Dataset9`; Dataset 4
+may also appear as `MRSLAM_Dataset4`.
 
-## Reproducing the Main Experiment
-
-Run the full real-data suite:
+## Run
 
 ```bash
 python scripts/run_mrclam_suite.py --retrain
-```
-
-Then run the score ablations:
-
-```bash
 python scripts/evaluate_score_variants.py
 python scripts/evaluate_ocsvm_feature_ablation.py
+```
+
+Robot-held-out score variants:
+
+```bash
 python scripts/evaluate_score_variants.py \
   --pattern 'configs/generated/mrclam_d1_holdout_r[1-5].yaml' \
   --out-prefix mrclam_robot_holdout_score_variants
 ```
 
-To regenerate the figures used for a single MR.CLAM run:
+Regenerate figures for one run:
 
 ```bash
 python scripts/make_figures.py --config configs/generated/mrclam_d1.yaml
 ```
 
-Outputs are written under `results/`. That directory is ignored by git so the
-repository stays lightweight.
+Run tests:
 
-## Notes
+```bash
+pytest tests
+```
 
-The repository does not redistribute MR.CLAM data. It also does not include
-trained checkpoints or generated result artifacts. This keeps the public code
-focused on the implementation and makes the experimental outputs traceable to a
-fresh run.
+Outputs are written under `results/`.

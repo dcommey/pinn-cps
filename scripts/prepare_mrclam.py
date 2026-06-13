@@ -94,8 +94,11 @@ def _dataset_label(dataset_dir: Path) -> str:
 
 def _attack_pack(items, metas, cfg, rng):
     attacks = [a for a in cfg.attack.types if a != "command_injection"]
+    if not attacks:
+        raise ValueError("MR.CLAM preparation does not support command_injection attacks")
     severities = list(cfg.attack.severity_levels)
     obs_out = []
+    clean_out = []
     cmd_out = []
     lab_out = []
     meta_out = []
@@ -110,13 +113,17 @@ def _attack_pack(items, metas, cfg, rng):
                 spec = AttackSpec(kind=atk, severity=sev, start=start, end=horizon + 1)
                 result = apply_attack(obs, obs, commands, spec, rng)
                 obs_out.append(result.obs.astype(np.float32))
+                clean_out.append(obs.astype(np.float32))
                 cmd_out.append(result.commands.astype(np.float32))
                 lab_out.append(result.labels.astype(np.int64))
                 base_meta = dict(metas[idx % len(metas)])
                 base_meta.update({"kind": atk, "severity": sev, "start": start, "end": horizon + 1})
                 meta_out.append(base_meta)
     return {
-        "states": np.stack(obs_out).astype(np.float32),
+        # "states" holds the clean (pre-attack) observation series so that
+        # downstream figure code can contrast ground truth with the attacked
+        # channel; "obs" holds the attacked series consumed by detectors.
+        "states": np.stack(clean_out).astype(np.float32),
         "obs": np.stack(obs_out).astype(np.float32),
         "commands": np.stack(cmd_out).astype(np.float32),
         "labels": np.stack(lab_out).astype(np.int64),
